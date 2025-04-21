@@ -1,40 +1,41 @@
-﻿using eCommerce.OrdersMicroservice.BusinessLogicLayer.Mappers;
-using eCommerce.OrdersMicroservice.BusinessLogicLayer.RabbitMQ;
+﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using FluentValidation;
+using eCommerce.OrdersMicroservice.BusinessLogicLayer.Validators;
+using eCommerce.OrdersMicroservice.BusinessLogicLayer.Mappers;
 using eCommerce.OrdersMicroservice.BusinessLogicLayer.ServiceContracts;
 using eCommerce.OrdersMicroservice.BusinessLogicLayer.Services;
-using eCommerce.OrdersMicroservice.BusinessLogicLayer.Validators;
-using FluentValidation;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
+using StackExchange.Redis;
+using eCommerce.OrdersMicroservice.BusinessLogicLayer.RabbitMQ;
+
 
 namespace eCommerce.OrdersMicroservice.BusinessLogicLayer;
 
 public static class DependencyInjection
 {
-    public static IServiceCollection AddBusinessLogicLayer(this IServiceCollection services, IConfiguration configuration)
+  public static IServiceCollection AddBusinessLogicLayer(this IServiceCollection services, IConfiguration configuration)
+  {
+    //TO DO: Add business logic layer services into the IoC container
+    services.AddValidatorsFromAssemblyContaining<OrderAddRequestValidator>();
+
+    services.AddAutoMapper(typeof(OrderAddRequestToOrderMappingProfile).Assembly);
+
+    services.AddScoped<IOrdersService, OrdersService>();
+
+    services.AddStackExchangeRedisCache(options =>
     {
-        //TO DO: Add business logic layer services into the IoC container
-        services.AddValidatorsFromAssemblyContaining<OrderAddRequestValidator>();
+      options.Configuration = $"{configuration["REDIS_HOST"]}:{configuration["REDIS_PORT"]}";
+    });
 
-        services.AddAutoMapper(typeof(OrderAddRequestToOrderMappingProfile).Assembly);
 
-        services.AddScoped<IOrdersService, OrdersService>();
+    services.AddTransient<IRabbitMQProductNameUpdateConsumer, RabbitMQProductNameUpdateConsumer>();
 
-        services.AddStackExchangeRedisCache(options =>
-        {
-            options.Configuration = $"{configuration["REDIS_HOST"]}:{configuration["REDIS_PORT"]}";
-        });
+    services.AddTransient<IRabbitMQProductDeletionConsumer, RabbitMQProductDeletionConsumer>();
 
-        services.AddTransient<IRabbitMQProductNameUpdateConsumer, RabbitMQProductNameUpdateConsumer>();
+    services.AddHostedService<RabbitMQProductNameUpdateHostedService>();
 
-        services.AddTransient<IRabbitMQProductDeletionConsumer, RabbitMQProductDeletionConsumer>();
+    services.AddHostedService<RabbitMQProductDeletionHostedService>();
 
-        Thread.Sleep(15000);
-
-        services.AddHostedService<RabbitMQProductNameUpdateHostedService>();
-
-        services.AddHostedService<RabbitMQProductDeletionHostedService>();
-
-        return services;
-    }
+    return services;
+  }
 }
